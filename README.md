@@ -1,6 +1,6 @@
 ---
 TEAM: Guardians of the Gradient
-AUTHORS: Sam Lee, Everett Anderson
+AUTHORS: Sam Lee, Everett Andrew
 ---
 
 # CO2-FDA
