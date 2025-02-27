@@ -1,0 +1,57 @@
+---
+title: "Beginning EDA"
+author: "Everett and Sam"
+date: "2025-02-26"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## Libraries and Data
+
+```{r}
+library(tidyverse)
+library(fdapace)
+library(refund)
+
+emissions_df <- read_csv('data/clean/emissions.csv') |> 
+  data.frame()
+
+head(emissions_df)
+```
+## Take care of NAs and outliers
+
+```{r}
+# NAs
+emissions_df <- emissions_df |> 
+  drop_na()
+
+# Outliers (removing all outside of 3 standard deviations)
+remove_outliers_sd <- function(x, threshold = 3) {
+  if (!is.numeric(x)) return(x)
+  mean_val <- mean(x, na.rm = TRUE)
+  sd_val <- sd(x, na.rm = TRUE)
+  ifelse(x >= (mean_val - threshold * sd_val) & x <= (mean_val + threshold * sd_val), x, NA)
+}
+
+emissions_df <- emissions_df |> 
+  mutate(across(where(is.numeric), remove_outliers_sd))
+
+```
+
+## Mean Estimation
+
+```{r}
+emissions_df |> 
+  select(-c(CC, Country)) |> 
+  colMeans()
+```
+
+## Covariance Estimation
+
+```{r}
+
+```
+
