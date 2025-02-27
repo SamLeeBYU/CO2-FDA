@@ -4,7 +4,7 @@
 
 library(tidyverse)
 
-co2 <- readxl::read_xlsx("../data/energy/emissions/CO2.xlsx",
+co2 <- readxl::read_xlsx("../../data/energy/emissions/CO2.xlsx",
                          sheet = "fossil_CO2_per_capita_by_countr", 
                          range = "A1:BE209") %>% 
   pivot_longer(cols = as.character(1970:2023),

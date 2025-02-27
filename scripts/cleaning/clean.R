@@ -17,4 +17,4 @@ emissions <- co2 %>% left_join(renewable_shares, by=join_by(CC, Year)) %>%
 
 head(emissions)
 
-write_csv(emissions, "../data/clean/emissions.csv")
+write_csv(emissions, "../../data/clean/emissions.csv")
