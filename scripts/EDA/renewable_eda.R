@@ -123,41 +123,30 @@ ggplot() +
 
 W.tilde = scale(W, center = mu.splines, scale=F)
 
-L.sparse <- fdapace::MakeFPCAInputs(IDs = renewables_filtered$CC,
-                                    sVec = renewables_filtered$Year,
-                                    tVec = renewables_filtered$Renewable_Share)
+L <- fdapace::MakeFPCAInputs(IDs = renewables_filtered$CC,
+                                    renewables_filtered$Year,
+                                    renewables_filtered$Renewable_Share)
 
-Khat.tilde <- blt.fit$efunctions %*% diag(blt.fit$evalues) %*%
-  t(blt.fit$efunctions)
+cov.sparse.gcv <- fdapace::FPCA(L$Ly, L$Lt,
+                                optns = list(
+                                  'kernel' = 'epan',
+                                  'methodBwCov' = 'GCV',
+                                  'error' = T,
+                                  'dataType' = 'Sparse',
+                                  'useBinnedCov' = F
+                                ))
 
-Covdf <- expand.grid(s = 1970:2023, t = 1970:2023)
-Covdf$CS <- c(cov(W))
-Covdf$Khat <- c(Khat.tilde)
+Covdf <- expand.grid(s = cov.sparse.gcv$workGrid, t = cov.sparse.gcv$workGrid)
+Covdf$Khat <- c(cov.sparse.gcv$smoothedCov)
 
-CovPlot.CS <- ggplot(Covdf, aes(x = s, y = t)) + 
-  geom_raster(aes(fill = CS)) + 
-  scale_fill_viridis_c(
-    values = scales::rescale(c(
-      seq(0, 300, 50)
-    ))) + 
-  xlab('s') + ylab('t') + theme_bw() + 
-  ggtitle('Cross-Sectional Covariance')+
-  theme_minimal(base_size = 14) +
-  theme(
-    legend.position = "none",
-    panel.background = element_rect(fill = "#FAFAFA"),
-    panel.grid.major = element_line(color = "#EAEAEA"),
-    panel.grid.minor = element_line(color = "#F5F5F5")
-  )
-
-CovPlot.Smooth <- ggplot(Covdf, aes(x = s, y = t)) + 
+ggplot(Covdf, aes(x = s, y = t)) + 
   geom_raster(aes(fill = Khat)) + 
   scale_fill_viridis_c(
     name = "Covariance",
     values = scales::rescale(c(
-      seq(0, 300, 50))))+ 
+      seq(0, 1000, 50))))+ 
   xlab('s') + theme_bw() + 
-  ggtitle('Covariance w/ Sandwhich Smoother') +
+  ggtitle('Local Linear Covariance Est. w/ GCV') +
   theme_minimal(base_size = 14) +
   theme(
     panel.background = element_rect(fill = "#FAFAFA"),
@@ -165,16 +154,40 @@ CovPlot.Smooth <- ggplot(Covdf, aes(x = s, y = t)) +
     panel.grid.minor = element_line(color = "#F5F5F5")
   )
 
-CovPlot.CS + CovPlot.Smooth
-
 #Variance Plot
 
-ggplot(mapping=aes(x = 1970:2023,
-                   y = diag(Khat.tilde)))+
+ggplot(mapping=aes(x = cov.sparse.gcv$workGrid,
+                   y = diag(cov.sparse.gcv$smoothedCov)))+
   geom_line(linewidth = 2)+
   labs(
     x = "Year",
     y = ""
+  )+
+  theme_minimal(base_size = 14) +
+  theme(
+    panel.background = element_rect(fill = "#FAFAFA"),
+    panel.grid.major = element_line(color = "#EAEAEA"),
+    panel.grid.minor = element_line(color = "#F5F5F5")
+  )
+
+################################################################################
+### FPCA ###
+################################################################################
+
+#Smoothed FPCA
+
+PhiW = cov.sparse.gcv$phi
+Component <- rep(c("j = 1", "j = 2", "j = 3", "j = 4"),
+                 each = length(cov.sparse.gcv$workGrid))
+ggplot(mapping = aes(x = rep(cov.sparse.gcv$workGrid, 4),
+                     y = c(PhiW[,1:4]),
+                     color = Component)) + 
+  geom_line()+
+  labs(
+    x = "Year (s)",
+    y = expression(
+      "Principal Component Function " ~ Phi[j](s)),
+    color = "Component"
   )+
   theme_minimal(base_size = 14) +
   theme(
