@@ -13,12 +13,11 @@ co2 <- readxl::read_xlsx("../../data/energy/emissions/CO2.xlsx",
   setNames(c("Metric", "CC", "Country", "Year", "CO2")) %>%
   mutate(
     Year = as.integer(Year)
-  ) %>%
-  filter(
-    Year >= 1990
   ) %>% dplyr::select(CC, Country, Year, CO2)
 
-co2.gdp <- readxl::read_xlsx("../data/energy/emissions/CO2.xlsx",
+write_csv(co2, "../../data/clean/carbon.csv")
+
+co2.gdp <- readxl::read_xlsx("../../data/energy/emissions/CO2.xlsx",
                              sheet = "fossil_CO2_per_GDP_by_country",
                              range="A1:AK209") %>%
   pivot_longer(cols = as.character(1990:2023),
