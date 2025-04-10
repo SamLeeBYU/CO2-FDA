@@ -1,4 +1,5 @@
 library(patchwork)
+library(ggrepel)
 
 source("scripts/EDA/setup.R")
 
@@ -22,26 +23,34 @@ country_colors <- c("China" = "#E63946",        # Deep Red (originally Qatar)
 
 carbon_filtered <- carbon %>%
   filter(CC != "PLW") %>%
-  mutate(Country = recode(CC, !!!country_names))  # Replace codes with names
+  mutate(Country = recode(CC, !!!country_names)) %>%
+  filter(log.CO2 > -4)
+
+label_data <- carbon_filtered %>%
+  filter(CC %in% names(country_names)) %>%
+  group_by(Country) %>%
+  slice_sample(n = 1)
 
 ggplot() +
   geom_line(data = carbon_filtered, 
-            aes(x = Year, y = CO2, group = CC), 
+            aes(x = Year, y = log.CO2, group = CC), 
             color = "gray70", alpha = 0.5) +
   geom_line(data = carbon_filtered %>% filter(CC %in% names(country_names)), 
-            aes(x = Year, y = CO2, group = Country, color = Country), 
-            linewidth = 1, alpha=0.8) +
+            aes(x = Year, y = log.CO2, group = Country, color = Country), 
+            linewidth = 1, alpha=0.8, show.legend = F) +
+  geom_label_repel(data = label_data,
+                   aes(x = Year, y = log.CO2, label = Country, color = Country),
+                   size = 8,
+                   direction = "y",
+                   segment.color = NA,
+                   box.padding = 0.4,
+                   show.legend = FALSE) +
   scale_color_manual(values = country_colors, name = "Country") +  
   labs(
     x = "Year",
-    y = expression("Metric Tons of"~CO[2]~"Emissions per Capita")
+    y = expression("Log Metric Tons of"~CO[2]~"Emissions per Capita")
   )+
-  theme_minimal(base_size = 14) +
-  theme(
-    panel.background = element_rect(fill = "#FAFAFA"),
-    panel.grid.major = element_line(color = "#EAEAEA"),
-    panel.grid.minor = element_line(color = "#F5F5F5")
-  )
+  theme
 
 ################################################################################
 ### MEAN ESTIMATION ###
@@ -51,7 +60,7 @@ ggplot() +
 mu.hat <- colMeans(W)
 
 #Using penalty chosen by GCV
-mu.splines <- ss(x = carbon$Year, y = carbon$CO2,
+mu.splines <- npreg::ss(x = carbon$Year, y = carbon$log.CO2,
                  method = "GCV")$y
 
 mu.df <- data.frame(
@@ -66,33 +75,23 @@ mu.df %>%
     geom_line(data = mu.df, aes(x = Year, y = MuSplines), color = "red", linewidth=1)+
   labs(
     x = "Year",
-    y = expression("Metric Tons of"~CO[2]~"Emissions per Capita")
+    y = expression("Log Metric Tons of"~CO[2]~"Emissions per Capita")
   )+
   # Enhanced theme with a soft background and subtle grid
-  theme_minimal(base_size = 14) +
-  theme(
-    panel.background = element_rect(fill = "#FAFAFA"), # Soft background
-    panel.grid.major = element_line(color = "#EAEAEA"), # Light gray major grid
-    panel.grid.minor = element_line(color = "#F5F5F5") # Even lighter minor grid
-  )
+  theme
 
 ggplot() +
   # Plot gray background lines for all countries
   geom_line(data = carbon_filtered, 
-            aes(x = Year, y = CO2, group = CC), 
+            aes(x = Year, y = log.CO2, group = CC), 
             color = "gray70", alpha = 0.5) +  # Light gray for background countries
   geom_line(data = mu.df, aes(x = Year, y = MuHat), color = "black", linewidth=1)+
   geom_line(data = mu.df, aes(x = Year, y = MuSplines), color = "red", linewidth=1)+
   labs(
     x = "Year",
-    y = expression("Metric Tons of"~CO[2]~"Emissions per Capita")
+    y = expression("Log Metric Tons of"~CO[2]~"Emissions per Capita")
   )+
-  theme_minimal(base_size = 14) +
-  theme(
-    panel.background = element_rect(fill = "#FAFAFA"),
-    panel.grid.major = element_line(color = "#EAEAEA"),
-    panel.grid.minor = element_line(color = "#F5F5F5")
-  )
+  theme
 
 
 ################################################################################
@@ -101,7 +100,7 @@ ggplot() +
 
 #Sandwich smoother
 W.tilde = scale(W, center = mu.splines, scale=F)
-blt.fit <- fpca.face(Y = W.tilde,
+blt.fit <- refund::fpca.face(Y = W.tilde,
                      argvals = 1970:2023,
                      knots = 10,
                      npc = 10,
@@ -116,20 +115,14 @@ Covdf$CS <- c(cov(W))
 Covdf$Khat <- c(Khat.tilde)
 
 CovPlot.CS <- ggplot(Covdf, aes(x = s, y = t)) + 
-  geom_raster(aes(fill = CS)) + 
+  geom_raster(aes(fill = CS), show.legend = F) + 
   scale_fill_viridis_c(
     values = scales::rescale(c(
       seq(0, 300, 50)
   ))) + 
   xlab('s') + ylab('t') + theme_bw() + 
   ggtitle('Cross-Sectional Covariance')+
-  theme_minimal(base_size = 14) +
-  theme(
-    legend.position = "none",
-    panel.background = element_rect(fill = "#FAFAFA"),
-    panel.grid.major = element_line(color = "#EAEAEA"),
-    panel.grid.minor = element_line(color = "#F5F5F5")
-  )
+  theme
 
 CovPlot.Smooth <- ggplot(Covdf, aes(x = s, y = t)) + 
   geom_raster(aes(fill = Khat)) + 
@@ -137,14 +130,9 @@ CovPlot.Smooth <- ggplot(Covdf, aes(x = s, y = t)) +
     name = "Covariance",
     values = scales::rescale(c(
       seq(0, 300, 50))))+ 
-  xlab('s') + theme_bw() + 
+  xlab('s') + ylab('') + theme_bw() + 
   ggtitle('Covariance w/ Sandwhich Smoother') +
-  theme_minimal(base_size = 14) +
-  theme(
-    panel.background = element_rect(fill = "#FAFAFA"),
-    panel.grid.major = element_line(color = "#EAEAEA"),
-    panel.grid.minor = element_line(color = "#F5F5F5")
-  )
+  theme
 
 CovPlot.CS + CovPlot.Smooth
 
@@ -155,14 +143,9 @@ ggplot(mapping=aes(x = 1970:2023,
   geom_line(linewidth = 2)+
   labs(
     x = "Year",
-    y = ""
+    y = "Variance"
   )+
-  theme_minimal(base_size = 14) +
-  theme(
-    panel.background = element_rect(fill = "#FAFAFA"),
-    panel.grid.major = element_line(color = "#EAEAEA"),
-    panel.grid.minor = element_line(color = "#F5F5F5")
-  )
+  theme
 
 ################################################################################
 ### FPCA ###
@@ -179,19 +162,14 @@ Component <- rep(c("j = 1", "j = 2", "j = 3", "j = 4"),
 ggplot(mapping = aes(x = rep(1970:2023, 4),
                      y = c(PhiX[,1:4]),
                      color = Component)) + 
-  geom_line()+
+  geom_line(linewidth=1.2)+
   labs(
     x = "Year (s)",
     y = expression(
       "Principal Component Function " ~ Phi[j](s)),
     color = "Component"
   )+
-  theme_minimal(base_size = 14) +
-  theme(
-    panel.background = element_rect(fill = "#FAFAFA"),
-    panel.grid.major = element_line(color = "#EAEAEA"),
-    panel.grid.minor = element_line(color = "#F5F5F5")
-  )
+  theme
 
 sum(lambdaX[1:4])/sum(lambdaX)
 
@@ -201,18 +179,13 @@ PhiW = blt.fit$efunctions
 ggplot(mapping = aes(x = rep(1970:2023, 4),
                      y = c(PhiW[,1:4]),
                      color = Component)) + 
-  geom_line()+
+  geom_line(linewidth=1.2)+
   labs(
     x = "Year (s)",
     y = expression(
       "Principal Component Function " ~ Phi[j](s)),
     color = "Component"
   )+
-  theme_minimal(base_size = 14) +
-  theme(
-    panel.background = element_rect(fill = "#FAFAFA"),
-    panel.grid.major = element_line(color = "#EAEAEA"),
-    panel.grid.minor = element_line(color = "#F5F5F5")
-  )
+  theme
 
 sum(blt.fit$evalues[1:4])/sum(blt.fit$evalues)

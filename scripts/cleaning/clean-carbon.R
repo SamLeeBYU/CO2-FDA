@@ -4,7 +4,7 @@
 
 library(tidyverse)
 
-co2 <- readxl::read_xlsx("../../data/energy/emissions/CO2.xlsx",
+co2 <- readxl::read_xlsx("data/energy/emissions/CO2.xlsx",
                          sheet = "fossil_CO2_per_capita_by_countr", 
                          range = "A1:BE209") %>% 
   pivot_longer(cols = as.character(1970:2023),
@@ -13,11 +13,14 @@ co2 <- readxl::read_xlsx("../../data/energy/emissions/CO2.xlsx",
   setNames(c("Metric", "CC", "Country", "Year", "CO2")) %>%
   mutate(
     Year = as.integer(Year)
-  ) %>% dplyr::select(CC, Country, Year, CO2)
+  ) %>% dplyr::select(CC, Country, Year, CO2) %>%
+  mutate(
+    log.CO2 = log(CO2)
+  )
 
-write_csv(co2, "../../data/clean/carbon.csv")
+write_csv(co2, "data/clean/carbon.csv")
 
-co2.gdp <- readxl::read_xlsx("../../data/energy/emissions/CO2.xlsx",
+co2.gdp <- readxl::read_xlsx("data/energy/emissions/CO2.xlsx",
                              sheet = "fossil_CO2_per_GDP_by_country",
                              range="A1:AK209") %>%
   pivot_longer(cols = as.character(1990:2023),

@@ -1,27 +1,48 @@
+library(ggrepel)
+
 source("scripts/cleaning/clean-renewables.R")
 
 ################################################################################
 ### DATA VISUALIZATION ###
 ################################################################################
 
+#Theme
+library(sysfonts)
+
+font_add("cm", regular="fonts/cmunrm.ttf")
+showtext::showtext_auto()
+
+theme <- theme_minimal(base_size = 24, base_family = "cm") +
+  theme(
+    #axis.text.x = element_text(angle = 75, hjust = 1),
+    axis.title.x = element_text(face = "bold"),
+    axis.title.y = element_text(face = "bold"),
+    axis.text = element_text(face = "bold"),
+    panel.background = element_rect(fill = "#F7F7F7"),
+    panel.grid.major = element_line(color = "#E3E3E3"),
+    panel.grid.minor = element_line(color = "#F0F0F0"),
+    plot.title = element_text(hjust = 0.5, face = "bold")
+  )
+
+blue <- "#66a3ff"
+orange <- "#ffb366"
+
+
 #Preprocessing
+
+s = 1990:2020
 
 avail.data <- renewable_shares %>% group_by(Year) %>%
   summarize(
-    n = n()
+    n = mean(!is.na(Renewable_Share))
   )
 
 ggplot(avail.data, aes(x=Year, y=n))+
   geom_point()+
   labs(
-    y = "Number of Curves (Countries)"
+    y = "Proportion of Available Renewable Energy Data"
   )+
-  theme_minimal(base_size = 14) +
-  theme(
-    panel.background = element_rect(fill = "#FAFAFA"),
-    panel.grid.major = element_line(color = "#EAEAEA"),
-    panel.grid.minor = element_line(color = "#F5F5F5")
-  )
+  theme
 
 renewable.dat <- renewable_shares %>% dplyr::select(CC, Year, Renewable_Share) %>%
   pivot_wider(
@@ -29,13 +50,18 @@ renewable.dat <- renewable_shares %>% dplyr::select(CC, Year, Renewable_Share) %
     values_from = Renewable_Share
   ) %>% filter(CC != "PLW")
 
-W <- as.matrix(renewable.dat[,str_c(1985:2023)])
+W <- as.matrix(renewable.dat[,str_c(s)])
 rownames(W) <- renewable.dat$CC
-colnames(W) <- 1985:2023
+colnames(W) <- s
 
 #Data Visualization
 country_names <- c("QAT" = "Qatar", "USA" = "United States", "IND" = "India", 
                    "CHN" = "China", "NGA" = "Nigeria")
+
+label_data <- renewables_filtered %>%
+  filter(CC %in% names(country_names)) %>%
+  group_by(Country) %>%
+  slice_sample(n = 1)
 
 country_colors <- c("China" = "#E63946",    
                     "United States" = "#1D35AA",
@@ -44,7 +70,8 @@ country_colors <- c("China" = "#E63946",
                     "Nigeria" = "#8E44AD")    
 
 renewables_filtered <- renewable_shares %>%
-  filter(CC != "PLW") %>%
+  filter(CC != "PLW" & Year %in% s) %>%
+  na.omit() %>%
   mutate(Country = recode(CC, !!!country_names))  # Replace codes with names
 
 ggplot() +
@@ -53,18 +80,20 @@ ggplot() +
             color = "gray70", alpha = 0.5) +
   geom_line(data = renewables_filtered %>% filter(CC %in% names(country_names)), 
             aes(x = Year, y = Renewable_Share, group = Country, color = Country), 
-            linewidth = 1, alpha=0.8) +
-  scale_color_manual(values = country_colors, name = "Country") +  
+            linewidth = 1, alpha = 0.8, show.legend = F) +
+  geom_label_repel(data = label_data,
+                   aes(x = Year, y = Renewable_Share, label = Country, color = Country),
+                   size = 8,
+                   direction = "y",
+                   segment.color = NA,
+                   box.padding = 0.4,
+                   show.legend = FALSE) +
+  scale_color_manual(values = country_colors) +
   labs(
     x = "Year",
     y = "Renewable Energy Share (%)"
   )+
-  theme_minimal(base_size = 14) +
-  theme(
-    panel.background = element_rect(fill = "#FAFAFA"),
-    panel.grid.major = element_line(color = "#EAEAEA"),
-    panel.grid.minor = element_line(color = "#F5F5F5")
-  )
+  theme
 
 ################################################################################
 ### MEAN ESTIMATION ###
@@ -76,7 +105,7 @@ mu.hat <- apply(W, 2, function(x){
 })
 
 #Using penalty chosen by GCV
-mu.splines <- ss(x = renewables_filtered$Year, y = renewables_filtered$Renewable_Share,
+mu.splines <- npreg::ss(x = renewables_filtered$Year, y = renewables_filtered$Renewable_Share,
                  method = "GCV")$y
 
 mu.df <- data.frame(
@@ -93,12 +122,7 @@ mu.df %>%
     x = "Year",
     y = expression("Renewable Energy Share (%)")
   )+
-  theme_minimal(base_size = 14) +
-  theme(
-    panel.background = element_rect(fill = "#FAFAFA"),
-    panel.grid.major = element_line(color = "#EAEAEA"),
-    panel.grid.minor = element_line(color = "#F5F5F5")
-  )
+  theme
 
 ggplot() +
   geom_line(data = renewables_filtered, 
@@ -110,12 +134,7 @@ ggplot() +
     x = "Year",
     y = expression("Renewable Energy Share (%)")
   )+
-  theme_minimal(base_size = 14) +
-  theme(
-    panel.background = element_rect(fill = "#FAFAFA"),
-    panel.grid.major = element_line(color = "#EAEAEA"),
-    panel.grid.minor = element_line(color = "#F5F5F5")
-  )
+  theme
 
 ################################################################################
 ### COVARIANCE ESTIMATION ###
@@ -132,8 +151,9 @@ cov.sparse.gcv <- fdapace::FPCA(L$Ly, L$Lt,
                                   'kernel' = 'epan',
                                   'methodBwCov' = 'GCV',
                                   'error' = T,
+                                  'useBinnedCov' = T,
                                   'dataType' = 'Sparse',
-                                  'useBinnedCov' = F
+                                  'methodSelectK' = 4
                                 ))
 
 Covdf <- expand.grid(s = cov.sparse.gcv$workGrid, t = cov.sparse.gcv$workGrid)
@@ -147,12 +167,7 @@ ggplot(Covdf, aes(x = s, y = t)) +
       seq(0, 1000, 50))))+ 
   xlab('s') + theme_bw() + 
   ggtitle('Local Linear Covariance Est. w/ GCV') +
-  theme_minimal(base_size = 14) +
-  theme(
-    panel.background = element_rect(fill = "#FAFAFA"),
-    panel.grid.major = element_line(color = "#EAEAEA"),
-    panel.grid.minor = element_line(color = "#F5F5F5")
-  )
+  theme
 
 #Variance Plot
 
@@ -161,14 +176,9 @@ ggplot(mapping=aes(x = cov.sparse.gcv$workGrid,
   geom_line(linewidth = 2)+
   labs(
     x = "Year",
-    y = ""
+    y = "Variance"
   )+
-  theme_minimal(base_size = 14) +
-  theme(
-    panel.background = element_rect(fill = "#FAFAFA"),
-    panel.grid.major = element_line(color = "#EAEAEA"),
-    panel.grid.minor = element_line(color = "#F5F5F5")
-  )
+  theme
 
 ################################################################################
 ### FPCA ###
@@ -182,16 +192,11 @@ Component <- rep(c("j = 1", "j = 2", "j = 3", "j = 4"),
 ggplot(mapping = aes(x = rep(cov.sparse.gcv$workGrid, 4),
                      y = c(PhiW[,1:4]),
                      color = Component)) + 
-  geom_line()+
+  geom_line(linewidth=1.2)+
   labs(
     x = "Year (s)",
     y = expression(
       "Principal Component Function " ~ Phi[j](s)),
     color = "Component"
   )+
-  theme_minimal(base_size = 14) +
-  theme(
-    panel.background = element_rect(fill = "#FAFAFA"),
-    panel.grid.major = element_line(color = "#EAEAEA"),
-    panel.grid.minor = element_line(color = "#F5F5F5")
-  )
+  theme
