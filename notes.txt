@@ -7,3 +7,4 @@ Questions for Dr. Petersen:
 1) If our functional covariates exist on the support S = [1990, 2020], should we also truncate our response variable to [1990, 2020]?
 2) What does our functional box plot and FPCA plots actually tell us
 3) Can we include dummy variables as a scalar predictor for country?
+4) Should we describe the estimation procedure in our report?
