@@ -7,8 +7,10 @@ wgi.s <- c(1996, 1998, 2000, 2002:2023)
 emissions <- readRDS("data/clean/emissions.rds")
 
 CCs <- emissions$carbon %>% rownames()
+countries <- c("USA", "CHN", "IND", "NOR")
+countries.index <- which(CCs %in% countries)
 
-#Mean Imputations
+#Mean Imputations #############################################
 na.test <- function(var){
   nas <- sum(is.na(emissions[[var]]))
   n <- prod(dim(emissions[[var]]))
@@ -61,7 +63,7 @@ for(v in names(emissions)){
 ##########################################################
 
 plot.fitted <- function(curve, yhat){
-  plt <- ggplot(mapping=aes(x=1:ncol(yhat)))+
+  plt <- ggplot(mapping=aes(x=co2.s))+
     geom_line(aes(y=emissions$carbon[curve,], color = "Observed"), linewidth=1)+
     geom_line(aes(y=yhat[curve,], color = "Fitted"), linewidth=1)+
     labs(
@@ -107,13 +109,14 @@ model.default <- pffr(
   bs.yindex = list(bs = "ps", k = 4, m = c(2, 2)),
   bs.int = list(bs = "ps", k = 30, m = c(2,2))
 )
+saveRDS(model.default, "scripts/models/model_default.RDS")
 
 yhat.default <- matrix(model.default$fitted.values, nrow=nrow(emissions$carbon),
                ncol=length(co2.s), byrow = T)
 colnames(yhat.default) <- co2.s
 rownames(yhat.default) <- rownames(emissions$carbon)
 
-fitted.plots.default <- lapply(1:4, function(cc){
+fitted.plots.default <- lapply(countries.index, function(cc){
   plot.fitted(cc, yhat.default)
 })
 
@@ -145,15 +148,16 @@ model <- pffr(
   yind = co2.s,
   data = emissions,
   bs.yindex = list(bs = "ps", k = 4, m = c(2, 2)),
-  bs.int = list(bs = "ps", k = 50, m = c(2,2))
+  bs.int = list(bs = "tp", m = c(2,2))
 )
+saveRDS(model, "scripts/models/model.RDS")
 
 yhat <- matrix(model$fitted.values, nrow=nrow(emissions$carbon),
                ncol=length(co2.s), byrow = T)
 colnames(yhat) <- co2.s
 rownames(yhat) <- rownames(emissions$carbon)
 
-fitted.plots <- lapply(1:4, function(cc){
+fitted.plots <- lapply(countries.index, function(cc){
   plot.fitted(cc, yhat)
 })
 
@@ -163,10 +167,10 @@ fr2.default <- fr2(emissions$carbon, yhat.default, Y.bar)
 fr2.historical <- fr2(emissions$carbon, yhat, Y.bar)
 
 ggplot(
-  mapping=aes(x = co2.s)
+  mapping=aes(x = co2.s),
 ) +
-  geom_line(aes(y = fr2.default, color="Default"))+
-  geom_line(aes(y = fr2.historical, color="Historical"))+
+  geom_line(aes(y = fr2.default, color="Default"), linewidth=2)+
+  geom_line(aes(y = fr2.historical, color="Historical"), linewidth=2)+
   labs(
     x = "Year",
     y = "R-Squared",
