@@ -50,6 +50,7 @@ create.W <- function(s, dat, var){
 emissions <- list()
 emissions$carbon <- create.W(co2.s, co2, "log.CO2")
 emissions$energy <- create.W(s, renewable_shares, "Renewable_Share")
+emissions$gdp <- create.W(s, co2, "log.GDPPC")
 emissions$hdi <- create.W(s, hdi, "HDI")
 emissions$inflation <- create.W(s, inflation, "Inflation")
 emissions$interest <- create.W(s, interest, "Interest")

@@ -38,4 +38,7 @@ co2.gdp <- readxl::read_xlsx("data/energy/emissions/CO2.xlsx",
 co2 <- co2 %>% left_join(co2.gdp, by=join_by(CC, Country, Year)) %>% mutate(
   GDPPC = CO2/CO2_GDP
 ) %>% dplyr::select(CC, Country, Year, log.CO2, GDPPC) %>%
-  na.omit()
+  na.omit() %>%
+  mutate(
+    log.GDPPC = log(GDPPC)
+  )
