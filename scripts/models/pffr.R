@@ -148,7 +148,7 @@ model <- pffr(
   yind = co2.s,
   data = emissions,
   bs.yindex = list(bs = "ps", k = 4, m = c(2, 2)),
-  bs.int = list(bs = "tp", m = c(2,2))
+  bs.int = list(bs = "ps", k=50, m = c(2,2))
 )
 saveRDS(model, "scripts/models/model.RDS")
 
@@ -177,4 +177,29 @@ ggplot(
     color = "Model"
   )+
   theme
-  
+
+#############################################################################
+
+#Renewable Energy Consumption Coefficient
+pffr.coefs <- coef(model)
+energy.coef <- pffr.coefs$smterms[[2]]$coef
+colnames(energy.coef)[1:2] <- c("s", "t")
+
+energy.coef %>%
+  dplyr::filter(s >= pmax(1990, t - delta), s <= t) %>%
+  ggplot(aes(x = s, y = t, fill = value)) +
+    geom_raster() +
+    scale_fill_gradient2(
+      low = "#1ca364",
+      mid = "#EEFFEE",
+      high = "#fcba03",
+      midpoint = 0,
+      name = expression(hat(beta[1])(s, t))
+    )+
+    labs(
+      x = "s (History)",
+      y = "t (Response)",
+      fill = expression(hat(beta)(s, t)),
+      title = "Estimated Coefficient Surface for Share of Renewable Energy Consumption"
+    ) +
+    theme
