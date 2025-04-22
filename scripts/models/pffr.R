@@ -1,11 +1,15 @@
 library(refund)
+library(patchwork)
 
+#Time Supports for the response and covariates
 co2.s <- 1990:2023
 s <- 1990:2020
 wgi.s <- c(1996, 1998, 2000, 2002:2023)
 
+#Functional data set compiled with scripts/cleaning/clean.R
 emissions <- readRDS("data/clean/emissions.rds")
 
+#Countries of interest
 CCs <- emissions$carbon %>% rownames()
 countries <- c("USA", "CHN", "IND", "NOR")
 countries.index <- which(CCs %in% countries)
@@ -106,10 +110,15 @@ model.default <- pffr(
            ff(Voice, xind = wgi.s, yind = co2.s),
   yind = co2.s,
   data = emissions,
-  bs.yindex = list(bs = "ps", k = 4, m = c(2, 2)),
-  bs.int = list(bs = "ps", k = 30, m = c(2,2))
+  
+  #Thin plate basis splines for carbon emissions
+  bs.yindex = list(bs = "tp"),
+  
+  #Penalized splines for covariates
+  bs.int = list(bs = "ps", k=4, m = c(2,2))
 )
 saveRDS(model.default, "scripts/models/model_default.RDS")
+model.default <- readRDS("scripts/models/model_default.RDS")
 
 yhat.default <- matrix(model.default$fitted.values, nrow=nrow(emissions$carbon),
                ncol=length(co2.s), byrow = T)
@@ -122,35 +131,41 @@ fitted.plots.default <- lapply(countries.index, function(cc){
 
 wrap_plots(fitted.plots.default, ncol = 2)
 
+#Time lag
 delta <- 20
+#Integration limits for economic covariates
+cov.limits <- function(s, t){
+  s >= pmax(1990, t-delta)
+}
+#Integration limits for WGI covariates
+wgi.limits <- function(s, t){
+  s >= pmax(1996, t-delta)
+}
 model <- pffr(
-  carbon ~ ff(energy, xind = s, yind = co2.s, limits=function(s, t){
-    s >= pmax(1990, t-delta)
-  }) + ff(gdp, xind = s, yind = co2.s, limits=function(s, t){
-    s >= pmax(1990, t-delta)
-  }) + ff(hdi, xind = s, yind = co2.s, limits=function(s, t){
-    s >= pmax(1990, t-delta)
-  }) + ff(inflation, xind = s, yind = co2.s, limits=function(s, t){
-    s >= pmax(1990, t-delta)
-  }) + ff(corruption, xind = wgi.s, yind = co2.s, limits=function(s, t){
-    s >= pmax(1996, t-delta)
-  }) + ff(Government, xind = wgi.s, yind = co2.s, limits=function(s, t){
-    s >= pmax(1996, t-delta)
-  }) + ff(Stability, xind = wgi.s, yind = co2.s, limits=function(s, t){
-    s >= pmax(1996, t-delta)
-  }) + ff(Law, xind = wgi.s, yind = co2.s, limits=function(s, t){
-    s >= pmax(1996, t-delta)
-  }) + ff(Regulation, xind = wgi.s, yind = co2.s, limits=function(s, t){
-    s >= pmax(1996, t-delta)
-  }) + ff(Voice, xind = wgi.s, yind = co2.s, limits=function(s, t){
-    s >= pmax(1996, t-delta)
-  }),
+  carbon ~
+  #Functional predictors
+    ff(energy, xind = s, yind = co2.s, limits=cov.limits) + 
+    ff(gdp, xind = s, yind = co2.s, limits=cov.limits) + 
+    ff(hdi, xind = s, yind = co2.s, limits=cov.limits) + 
+    ff(inflation, xind = s, yind = co2.s, limits=cov.limits) + 
+    ff(corruption, xind = wgi.s, yind = co2.s, limits=wgi.limits) + 
+    ff(Government, xind = wgi.s, yind = co2.s, limits=wgi.limits) + 
+    ff(Stability, xind = wgi.s, yind = co2.s, limits=wgi.limits) + 
+    ff(Law, xind = wgi.s, yind = co2.s, limits=wgi.limits) + 
+    ff(Regulation, xind = wgi.s, yind = co2.s, limits=wgi.limits) + 
+    ff(Voice, xind = wgi.s, yind = co2.s, limits=wgi.limits),
+  #Support of carbon emissions
   yind = co2.s,
   data = emissions,
-  bs.yindex = list(bs = "ps", k = 4, m = c(2, 2)),
-  bs.int = list(bs = "ps", k=50, m = c(2,2))
+  
+  #Thin plate basis splines for carbon emissions
+  bs.yindex = list(bs = "tp"),
+  
+  #Penalized splines for covariates
+  bs.int = list(bs = "ps", k=4, m = c(2,2))
 )
 saveRDS(model, "scripts/models/model.RDS")
+model <- readRDS("scripts/models/model.RDS")
 
 yhat <- matrix(model$fitted.values, nrow=nrow(emissions$carbon),
                ncol=length(co2.s), byrow = T)
@@ -171,6 +186,9 @@ ggplot(
 ) +
   geom_line(aes(y = fr2.default, color="Default"), linewidth=2)+
   geom_line(aes(y = fr2.historical, color="Historical"), linewidth=2)+
+  scale_color_manual(
+    values = c("Default" = "#fcba03", "Historical" = "#1ca364")
+  )+
   labs(
     x = "Year",
     y = "R-Squared",
@@ -183,9 +201,11 @@ ggplot(
 #Renewable Energy Consumption Coefficient
 pffr.coefs <- coef(model)
 energy.coef <- pffr.coefs$smterms[[2]]$coef
+#For convenience, rename the history and response to the conventional s and t variables
 colnames(energy.coef)[1:2] <- c("s", "t")
 
 energy.coef %>%
+  #Obtain the triangular support of interest
   dplyr::filter(s >= pmax(1990, t - delta), s <= t) %>%
   ggplot(aes(x = s, y = t, fill = value)) +
     geom_raster() +
