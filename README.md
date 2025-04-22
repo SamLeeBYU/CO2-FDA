@@ -47,3 +47,25 @@ This dataset contains annual macroeconomic and governance indicators for various
 - **Variable Scales**:
   - WGI indicators range from approximately -2.5 to +2.5, where higher values indicate better governance outcomes.
   - Economic indicators such as CO2, GDPPC, and Inflation are reported in their natural units.
+ 
+## Scripts
+
+### `scripts/clean.R`
+This script loads, merges, and cleans the raw carbon emissions and covariate data from various sources (e.g., EDGAR, World Bank). It performs the following steps:
+- Sources individual cleaning scripts for each dataset (`clean-carbon.R`, `clean-gdp.R`, etc.)
+- Joins all datasets into a unified panel by country (`CC`) and year
+- Constructs functional data matrices for each variable over the specified time ranges
+- Restricts the dataset to countries with complete data across all series
+- Saves a cleaned emissions object as `emissions.rds` in `data/clean/`
+
+### `scripts/pffr.R`
+This script performs the core modeling and visualization tasks:
+- Loads the cleaned data (`emissions.rds`) and defines time grids for modeling
+- Applies mean imputation for missing values in select covariates
+- Fits both a default function-on-function model and a historical functional linear model using the `pffr()` function from the `refund` package
+- Extracts fitted values and plots country-specific trajectories
+- Computes time-varying $R^2(t)$ statistics to compare model performance
+- Extracts and visualizes the estimated coefficient surface for renewable energy using a bivariate color scale
+
+All visualizations and fitted models are saved or rendered for inclusion in the final report.
+
