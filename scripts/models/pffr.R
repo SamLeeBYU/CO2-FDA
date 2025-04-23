@@ -1,5 +1,8 @@
 library(refund)
 library(patchwork)
+library(tidyverse)
+
+source("scripts/EDA/setup.R")
 
 #Time Supports for the response and covariates
 co2.s <- 1990:2023
@@ -135,11 +138,11 @@ wrap_plots(fitted.plots.default, ncol = 2)
 delta <- 20
 #Integration limits for economic covariates
 cov.limits <- function(s, t){
-  s >= pmax(1990, t-delta)
+  s >= pmax(1990, t-delta) & s <= t
 }
 #Integration limits for WGI covariates
 wgi.limits <- function(s, t){
-  s >= pmax(1996, t-delta)
+  s >= pmax(1996, t-delta) & s <= t
 }
 model <- pffr(
   carbon ~
@@ -209,13 +212,14 @@ energy.coef %>%
   dplyr::filter(s >= pmax(1990, t - delta), s <= t) %>%
   ggplot(aes(x = s, y = t, fill = value)) +
     geom_raster() +
-    scale_fill_gradient2(
-      low = "#1ca364",
-      mid = "#EEFFEE",
-      high = "#fcba03",
-      midpoint = 0,
-      name = expression(hat(beta[1])(s, t))
-    )+
+    # scale_fill_gradient2(
+    #   low = "#1cC364",
+    #   mid = "#88CC00",
+    #   high = "#fcba03",
+    #   midpoint = 0,
+    #   name = expression(hat(beta[1])(s, t))
+    # )+
+    scale_fill_viridis_c(option = "H", name = expression(hat(beta[1])(s, t)))+
     labs(
       x = "s (History)",
       y = "t (Response)",
